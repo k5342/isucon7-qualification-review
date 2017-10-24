@@ -1,6 +1,7 @@
 require 'digest/sha1'
 require 'mysql2'
 require 'sinatra/base'
+# require 'pry'
 
 class App < Sinatra::Base
   configure do
@@ -121,18 +122,22 @@ class App < Sinatra::Base
     statement = db.prepare('SELECT * FROM message WHERE id > ? AND channel_id = ? ORDER BY id DESC LIMIT 100')
     rows = statement.execute(last_message_id, channel_id).to_a
 
-    stmt = db.prepare("SELECT id, name, display_name, avatar_icon FROM user WHERE id IN (#{(['?']*rows.size).join(',')})")
-    users = stmt.execute(*(rows.map { |row| row['user_id'] }))    
-
+    # resolve N+1
+    users = if rows.size == 0
+              []
+            else
+              r = db.prepare("SELECT id, name, display_name, avatar_icon FROM user WHERE id IN (#{rows.map { |row| row['user_id'] }.join(',')})").execute.to_a
+            end
+    
     response = []
     rows.each do |row|
       r = {}
       r['id'] = row['id']
-      r['user'] = users.select { |user| row['user_id'] == user['id'] }
+      r['user'] = users.select { |user| row['user_id'] == user['id'] }.first
       r['date'] = row['created_at'].strftime("%Y/%m/%d %H:%M:%S")
       r['content'] = row['content']
       response << r
-      statement.close
+      # statement.close
     end
     response.reverse!
 
