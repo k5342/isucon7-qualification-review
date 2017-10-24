@@ -303,8 +303,6 @@ class App < Sinatra::Base
     end
 
     if !avatar_name.nil? && !avatar_data.nil?
-      File.open("../public/icons/#{avatar_name}", "wb").write(data)
-      
       statement = db.prepare('INSERT INTO image (name, data) VALUES (?, ?)')
       statement.execute(avatar_name, avatar_data)
       statement.close
@@ -342,9 +340,8 @@ class App < Sinatra::Base
     return @db_client if defined?(@db_client)
 
     @db_client = Mysql2::Client.new(
-#      host: ENV.fetch('ISUBATA_DB_HOST') { 'localhost' },
-#      port: ENV.fetch('ISUBATA_DB_PORT') { '3306' },
-      socket: '/run/mysqld/mysqld.sock',
+      host: ENV.fetch('ISUBATA_DB_HOST') { 'localhost' },
+      port: ENV.fetch('ISUBATA_DB_PORT') { '3306' },
       username: ENV.fetch('ISUBATA_DB_USER') { 'root' },
       password: ENV.fetch('ISUBATA_DB_PASSWORD') { '' },
       database: 'isubata',
