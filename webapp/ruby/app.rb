@@ -126,7 +126,10 @@ class App < Sinatra::Base
     users = if rows.size == 0
               []
             else
-              r = db.prepare("SELECT id, name, display_name, avatar_icon FROM user WHERE id IN (#{rows.map { |row| row['user_id'] }.join(',')})").execute.to_a
+              stmt = db.prepare("SELECT id, name, display_name, avatar_icon FROM user WHERE id IN (#{rows.map { |row| row['user_id'] }.join(',')})")
+              r = stmt.execute.to_a
+              stmt.close
+              r
             end
     
     response = []
