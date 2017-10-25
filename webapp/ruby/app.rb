@@ -1,6 +1,7 @@
 require 'digest/sha1'
 require 'mysql2'
 require 'sinatra/base'
+# require 'pry'
 
 class App < Sinatra::Base
   configure do
@@ -120,16 +121,26 @@ class App < Sinatra::Base
     last_message_id = params[:last_message_id].to_i
     statement = db.prepare('SELECT * FROM message WHERE id > ? AND channel_id = ? ORDER BY id DESC LIMIT 100')
     rows = statement.execute(last_message_id, channel_id).to_a
+
+    # resolve N+1
+    users = if rows.size == 0
+              []
+            else
+              stmt = db.prepare("SELECT id, name, display_name, avatar_icon FROM user WHERE id IN (#{rows.map { |row| row['user_id'] }.join(',')})")
+              r = stmt.execute.to_a
+              stmt.close
+              r
+            end
+    
     response = []
     rows.each do |row|
       r = {}
       r['id'] = row['id']
-      statement = db.prepare('SELECT name, display_name, avatar_icon FROM user WHERE id = ?')
-      r['user'] = statement.execute(row['user_id']).first
+      r['user'] = users.select { |user| row['user_id'] == user['id'] }.first
       r['date'] = row['created_at'].strftime("%Y/%m/%d %H:%M:%S")
       r['content'] = row['content']
       response << r
-      statement.close
+      # statement.close
     end
     response.reverse!
 
@@ -151,7 +162,7 @@ class App < Sinatra::Base
       return 403
     end
 
-    # sleep 1.0
+    sleep 1.0
 
     rows = db.query('SELECT id FROM channel').to_a
     channel_ids = rows.map { |row| row['id'] }
@@ -303,8 +314,6 @@ class App < Sinatra::Base
     end
 
     if !avatar_name.nil? && !avatar_data.nil?
-      File.open("../public/icons/#{avatar_name}", "wb").write(data)
-      
       statement = db.prepare('INSERT INTO image (name, data) VALUES (?, ?)')
       statement.execute(avatar_name, avatar_data)
       statement.close
@@ -342,9 +351,8 @@ class App < Sinatra::Base
     return @db_client if defined?(@db_client)
 
     @db_client = Mysql2::Client.new(
-#      host: ENV.fetch('ISUBATA_DB_HOST') { 'localhost' },
-#      port: ENV.fetch('ISUBATA_DB_PORT') { '3306' },
-      socket: '/run/mysqld/mysqld.sock',
+      host: ENV.fetch('ISUBATA_DB_HOST') { 'localhost' },
+      port: ENV.fetch('ISUBATA_DB_PORT') { '3306' },
       username: ENV.fetch('ISUBATA_DB_USER') { 'root' },
       password: ENV.fetch('ISUBATA_DB_PASSWORD') { '' },
       database: 'isubata',
